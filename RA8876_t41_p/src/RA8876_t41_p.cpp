@@ -59,7 +59,7 @@ inline void RA8876_t41_p::RDLow() {
 
 //#define DEBUG
 //#define DEBUG_VERBOSE
-//#define DEBUG_FLEXIO
+#define DEBUG_FLEXIO
 
 #ifndef DEBUG
 #undef DEBUG_VERBOSE
@@ -669,6 +669,13 @@ FASTRUN void RA8876_t41_p::FlexIO_Config_MultiBeat() {
     // disable interrupts until later
     p->SHIFTSIEN &= ~(1 << SHIFTER_IRQ);
     p->TIMIEN &= ~(1 << TIMER_IRQ);
+#if defined(DEBUG_FLEXIO)
+    static uint8_t DEBUG_COUNT = 2;
+    if (DEBUG_COUNT) {
+        DEBUG_COUNT--;
+        print_flexio_debug_data(pFlex, "FlexIO_Config_MultiBeat" );
+    }
+#endif
     DBGPrintf("RA8876_t41_p::FlexIO_Config_MultiBeat() - Exit\n");
 }
 
@@ -706,10 +713,17 @@ FASTRUN void RA8876_t41_p::flexIRQ_Callback() {
             if (_bus_width == 8) {
                 for (int i = 0; i < SHIFTNUM; i++) {
                     uint32_t data = *_irq_readPtr++;
-                    p->SHIFTBUFHWS[i] = ((data >> 16) & 0xFFFF) | ((data << 16) & 0xFFFF0000);
+                    //p->SHIFTBUFHWS[i] = ((data >> 16) & 0xFFFF) | ((data << 16) & 0xFFFF0000);
+                    p->SHIFTBUF[i] = data; //((data >> 16) & 0xFFFF) | ((data << 16) & 0xFFFF0000);
                     while (0 == (p->SHIFTSTAT & (1U << SHIFTER_IRQ))) {
                     }
                 }
+            } else if (_bus_width == 16) {
+                for (int i = 0; i < SHIFTNUM; i++) {
+                    uint32_t data = *_irq_readPtr++;
+                    p->SHIFTBUF[i] = data; //((data >> 16) & 0xFFFF) | ((data << 16) & 0xFFFF0000);
+                }
+                //Serial.write('S');
             } else {
                 uint8_t *pb = (uint8_t*)_irq_readPtr;
                 for (int i = SHIFTNUM - 1; i >= 0; i--) {
@@ -739,7 +753,9 @@ FASTRUN void RA8876_t41_p::MulBeatWR_nPrm_IRQ(const void *value, uint32_t const 
     WR_IRQTransferDone = false;
 
     uint32_t bytes = length * 2U;
-    _irq_bytes_per_shifter = (_bus_width <= 8) ? 4 : 2;
+
+    // 10 bits is actually 8 bit but we need to send 10 for D4 as there is hole in the Flexio PINs
+    _irq_bytes_per_shifter = (_bus_width != 10) ? 4 : 2;
     _irq_bytes_per_burst = _irq_bytes_per_shifter * SHIFTNUM;
 
 
@@ -757,11 +773,11 @@ FASTRUN void RA8876_t41_p::MulBeatWR_nPrm_IRQ(const void *value, uint32_t const 
 
     _irq_bytes_remaining = bytes;
     _irq_readPtr = (uint32_t *)value;
-    //    Serial.printf ("arg addr: %x, _irq_readPtr addr: %x, contents: %x\n", value, _irq_readPtr, *_irq_readPtr);
-    //    Serial.printf("START::_irq_bursts_to_complete: %d _irq_bytes_remaining: %d \n", _irq_bursts_to_complete, _irq_bytes_remaining);
+        Serial.printf ("arg addr: %x, _irq_readPtr addr: %x, contents: %x\n", value, _irq_readPtr, *_irq_readPtr);
+        Serial.printf("START::_irq_bursts_to_complete: %d _irq_bytes_remaining: %d \n", _irq_bursts_to_complete, _irq_bytes_remaining);
 
     uint8_t beats = SHIFTNUM * _irq_bytes_per_shifter;
-    p->TIMCMP[0] = ((beats * 2U - 1) << 8) | (_baud_div / 2U - 1U);
+    //p->TIMCMP[0] = ((beats * 2U - 1) << 8) | (_baud_div / 2U - 1U);
     p->TIMSTAT = (1 << TIMER_IRQ); // clear timer interrupt signal
 
     asm("dsb");

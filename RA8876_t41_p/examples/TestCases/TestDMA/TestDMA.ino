@@ -1,3 +1,5 @@
+#include <MemoryHexDump.h>
+
 #include "Teensy41_Cardlike.h"
 #include "flexio_teensy_mm.c"
 #include "teensy41.c"
@@ -32,11 +34,16 @@ uint8_t busSpeed = 24;
 
 void setup() {
   while (!Serial && millis() < 3000) {} //wait for Serial Monitor
+  if (CrashReport) {
+    Serial.print(CrashReport);
+    waitforInput();
+  }
+
   Serial.printf("%c MicroMod Board and RA8876 parallel 8080 mode testing (8Bit/DMA)\n\n",12);
 //  Serial.print(CrashReport);
 
   // Set 16bit mode
-//  tft.setBusWidth(16);
+  tft.setBusWidth(16);
   // DB5.0 WR pin, RD pin, D0 pin.
 //  tft.setFlexIOPins(53,52,40);
 
@@ -60,14 +67,25 @@ void setup() {
 
 }
 
+volatile bool frame_active = false;
 void frame_complete_callback() {
     Serial.println("\n*** Frame Complete Callback ***");
+    frame_active = false;
 }
+
+uint16_t pixel_data[4000];
 
 void loop() {
 #if 1    
   tft.fillScreen(BLUE);
+  frame_active = true;
   tft.pushPixels16bitAsync(teensy41_Cardlike,10,10,575,424);
+  while(frame_active) {};
+  delay(250); // make sure
+  MemoryHexDump(Serial, teensy41_Cardlike, 128, true, "\nObject:\n", -1, 0);
+  tft.readRect(10, 10, 575, 2, pixel_data);
+  MemoryHexDump(Serial, pixel_data, 128, true, "\nReadBack:\n", -1, 0);
+
   waitforInput();
   tft.pushPixels16bitAsync(flexio_teensy_mm,0,0,480,320); // 480x320
   waitforInput();
