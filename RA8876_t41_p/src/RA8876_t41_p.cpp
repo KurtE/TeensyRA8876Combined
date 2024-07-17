@@ -776,7 +776,7 @@ FASTRUN void RA8876_t41_p::MulBeatWR_nPrm_IRQ(const void *value, uint32_t const 
         Serial.printf ("arg addr: %x, _irq_readPtr addr: %x, contents: %x\n", value, _irq_readPtr, *_irq_readPtr);
         Serial.printf("START::_irq_bursts_to_complete: %d _irq_bytes_remaining: %d \n", _irq_bursts_to_complete, _irq_bytes_remaining);
 
-    uint8_t beats = SHIFTNUM * _irq_bytes_per_shifter;
+    //uint8_t beats = SHIFTNUM * _irq_bytes_per_shifter;
     //p->TIMCMP[0] = ((beats * 2U - 1) << 8) | (_baud_div / 2U - 1U);
     p->TIMSTAT = (1 << TIMER_IRQ); // clear timer interrupt signal
 
@@ -789,14 +789,29 @@ FASTRUN void RA8876_t41_p::MulBeatWR_nPrm_IRQ(const void *value, uint32_t const 
 }
 
 FASTRUN void RA8876_t41_p::_onDMACompleteCB() {
-    if (_DMAcallback) {
-        _DMAcallback();
+    if(_callback) {
+        _callback();
     }
-    return;
 }
 
-
 FASTRUN void RA8876_t41_p::pushPixels16bitAsync(const uint16_t *pcolors, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
+    while (WR_IRQTransferDone == false) {
+    } // Wait for any DMA transfers to complete
+    uint32_t area = (x2) * (y2);
+    graphicMode(true);
+    activeWindowXY(x1, y1);
+    activeWindowWH(x2, y2);
+    setPixelCursor(x1, y1);
+    ramAccessPrepare();
+    
+    if (hw->shifters_dma_channel[SHIFTER_DMA_REQUEST] != 0xff) {
+      MulBeatWR_nPrm_DMA(pcolors, area);
+    } else {
+        MulBeatWR_nPrm_IRQ(pcolors, area);
+    }
+}
+
+FASTRUN void RA8876_t41_p::pushPixels16bitIRQ(const uint16_t *pcolors, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
     while (WR_IRQTransferDone == false) {
     } // Wait for any DMA transfers to complete
     uint32_t area = (x2) * (y2);
@@ -891,7 +906,7 @@ DMAChannel RA8876_t41_p::flexDma;
 FASTRUN void RA8876_t41_p::MulBeatWR_nPrm_DMA(const void *value, uint32_t const length) 
 {
   while(WR_DMATransferDone == false) {}  //Wait for any DMA transfers to complete
-
+  Serial.printf("call MulBeatWR_nPrm_DMA(%p %u)\n", value, length); 
   uint32_t BeatsPerMinLoop = SHIFTNUM * sizeof(uint32_t) / sizeof(uint8_t);   // Number of shifters * number of 8 bit values per shifter
   uint32_t majorLoopCount, minorLoopBytes;
   uint32_t destinationModulo = 31-(__builtin_clz(SHIFTNUM*sizeof(uint32_t))); // defines address range for circular DMA destination buffer 
@@ -977,6 +992,7 @@ FASTRUN void RA8876_t41_p::dmaISR() {
 }
 
 FASTRUN void RA8876_t41_p::flexDma_Callback() {
+    Serial.println("$$flexDma_Callback");
   /* the interrupt is called when the final DMA transfer completes writing to the shifter buffers, which would generally happen while
   data is still in the process of being shifted out from the second-to-last major iteration. In this state, all the status flags are cleared.
   when the second-to-last major iteration is fully shifted out, the final data is transfered from the buffers into the shifters which sets all the status flags.
@@ -1018,9 +1034,9 @@ FASTRUN void RA8876_t41_p::flexDma_Callback() {
   however, it seems like a waste of time to wait here, since the process otherwise completes in the background and the shifter buffers are ready to receive new data while the transfer completes.
   I think in most applications you could continue without waiting. You can start a new DMA transfer as soon as the first one completes (no need to wait for FlexIO to finish shifting). */
   WR_DMATransferDone = true;
-  if(isDMACB) {
+  //if(isDMACB) {
     _onDMACompleteCB();
-  }
+  //}
 }
 
 void RA8876_t41_p::DMAerror() {

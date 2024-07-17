@@ -176,7 +176,18 @@ class RA8876_t41_p : public RA8876_common {
 
     void FlexIO_Clear_Config_SnglBeat();
     void MulBeatWR_nPrm_IRQ(const void *value, uint32_t const length);
+
+
+    // Main Async API - which either uses DMA or IRQs depending on if the FlexIO
+    // supports DMA or not.
     void pushPixels16bitAsync(const uint16_t *pcolors, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
+
+    // Version of the above that always uses IRQs
+    void pushPixels16bitIRQ(const uint16_t *pcolors, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
+
+    // Version that uses DMA. This will fail if the FlexIO does not support DMA.
+    void pushPixels16bitDMA(const uint16_t * pcolors, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
+
     void lcdRegDataWrite16(ru8 reg, ru16 data, bool finalize);
 
     FlexIOHandler *pFlex;
@@ -185,12 +196,12 @@ class RA8876_t41_p : public RA8876_common {
 
     // DMA 
     bool isDMACB = false;
-    void _onDMACompleteCB();
-	CBF _DMAcallback;
-	void onDMACompleteCB(CBF callback) {_DMAcallback = callback; }
+  void _onDMACompleteCB();
+	//CBF _DMAcallback;
+	//void onDMACompleteCB(CBF callback) {_DMAcallback = callback; }
 	void FlexIO_Config_DMA_MultiBeat();
 	void MulBeatWR_nPrm_DMA(const void *value, uint32_t const length);
-	void pushPixels16bitDMA(const uint16_t * pcolors, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
+	
     void DMAerror();
 
     uint8_t _baud_div = 20;

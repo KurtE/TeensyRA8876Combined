@@ -943,7 +943,7 @@ class RA8876_common : public Print {
     void _disableCapISR(void);
     volatile boolean _needCTS_ISRrearm;
     static void cts_isr(void);
-    TwoWire *_wire = &Wire2;
+    TwoWire *_wire = &Wire;
 #endif
 };
 

@@ -7,7 +7,7 @@
 
   Also demonstrates use of the "graphic cursor" mouse cursor and a simple animated cursor.
 */
-#define use_spi
+//#define use_spi
 #if defined(use_spi)
 #include <SPI.h>
 #include <RA8876_t3.h>
@@ -27,8 +27,8 @@ uint8_t rst = 12;
 RA8876_t41_p tft = RA8876_t41_p(dc,cs,rst); //(dc, cs, rst)
 #endif
 
-#define CTP_INT           6    // Use an interrupt capable pin such as pin 2 (any pin on a Teensy)
-#define MAXTOUCHLIMIT 1
+#define CTP_INT           15    // Use an interrupt capable pin such as pin 2 (any pin on a Teensy)
+#define MAXTOUCHLIMIT 2
 uint16_t new_coordinates[5][2];
 uint16_t old_coordinates[5][2];
 uint8_t current_touches = 0;
@@ -87,6 +87,13 @@ void setup()
   Serial.print(" at ");
   Serial.println(__TIME__);
 
+  if (CrashReport) {
+    Serial.print(CrashReport);
+    Serial.println("Press any key to continue");
+    while (Serial.read() == -1) {}
+    while (Serial.read() != -1) {}
+  }
+
   //I'm guessing most copies of this display are using external PWM
   //backlight control instead of the internal RA8876 PWM.
   //Connect a Teensy pin to pin 14 on the display.
@@ -98,8 +105,11 @@ void setup()
 #endif
 
 #if defined(use_spi)
+  Serial.println("Before TFT begin"); Serial.flush();
   tft.begin(); 
-#else
+#else  
+  tft.setBusWidth(16);
+  tft.setFlexIOPins(53,52,40);
   tft.begin(20);// 20 is working in 8bit and 16bit mode on T41
 #endif
   tft.useCapINT(CTP_INT);//we use the capacitive chip Interrupt out!
@@ -135,6 +145,10 @@ void setup()
 void loop()
 {
   //cts.setTouchLimit(1);//from 1 to 5
+  if (Serial.available()) {
+    while(Serial.read() != -1) {}
+    tft.printTSRegisters(Serial, 0, 16);
+  }
   if (tft.touched()) { //if touched(true) detach isr
     //at this point we need to fill the FT5206 registers...
     tft.updateTS();//now we have the data inside library
